@@ -5,7 +5,7 @@ This GitHub Action installs Ansible on your GitHub Actions runner.
 ## Usage
 
 ```yaml
-- uses: ansible-community/setup-ansible@v1
+- uses: AdnanCekic/setup-ansible@v1
     with:
         ansible-version: '2.19.3'  # optional, defaults to latest
 ```
@@ -28,7 +28,7 @@ jobs:
             - uses: actions/checkout@v3
             
             - name: Install Ansible
-                uses: ansible-community/setup-ansible@v1
+                uses: AdnanCekic/setup-ansible@v1
                 with:
                     ansible-version: '2.19.3'
             
