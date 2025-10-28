@@ -7,7 +7,7 @@ This GitHub Action installs Ansible on your GitHub Actions runner.
 ```yaml
 - uses: AdnanCekic/setup-ansible@v1
     with:
-        ansible-version: '2.19.3'  # optional, defaults to latest
+        version: '2.19.3'  # optional, defaults to latest
 ```
 
 ## Example Workflow
@@ -30,7 +30,7 @@ jobs:
             - name: Install Ansible
                 uses: AdnanCekic/setup-ansible@v1
                 with:
-                    ansible-version: '2.19.3'
+                    version: '2.19.3'
             
             - name: Run playbook
                 run: ansible-playbook playbook.yml
@@ -40,7 +40,7 @@ jobs:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `ansible-version` | Version of Ansible to install | No | Latest version |
+| `version` | Version of Ansible to install | No | Latest version |
 
 ## License
 
