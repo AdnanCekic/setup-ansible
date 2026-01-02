@@ -1,32 +1,40 @@
 name: Setup Ansible
-description: Installs Ansible and its dependencies
+description: Install Ansible in an isolated virtualenv
 inputs:
   version:
     required: true
-    description: Ansible version to install (e.g., "2.10.7")
+    description: Ansible version to install (e.g. "2.20.1")
+
 runs:
   using: composite
   steps:
-    - name: Install Python
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.12
+        python-version: "3.11"
 
-    - name: Cache Python packages
+    - name: Restore venv cache
       uses: actions/cache@v4
       with:
         path: .venv
-        key: ${{ runner.os }}-${{ inputs.version }}-${{ hashFiles('**/requirements.txt') }}
-    
-    - name: Install packages
+        key: ansible-${{ runner.os }}-${{ inputs.version }}
+
+    - name: Create virtualenv
       shell: bash
       run: |
-        if [ -f requirements.txt ]; then
-          python -m pip install -r requirements.txt
-        else
-          python -m pip install ansible==${{ inputs.version }}
+        if [ ! -d ".venv" ]; then
+          python -m venv .venv
         fi
-    
-branding:
-    icon: 'terminal'
-    color: 'blue'
+
+    - name: Install Ansible
+      shell: bash
+      run: |
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        python -m pip install ansible==${{ inputs.version }}
+
+    - name: Verify Ansible
+      shell: bash
+      run: |
+        source .venv/bin/activate
+        ansible --version
