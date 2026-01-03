@@ -38,3 +38,8 @@ runs:
       run: |
         source .venv/bin/activate
         ansible --version
+    
+    - name: Add venv to PATH
+      shell: bash
+      run: |
+        echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
