@@ -31,7 +31,7 @@ runs:
       run: |
         source .venv/bin/activate
         python -m pip install --upgrade pip
-        python -m pip install ansible==${{ inputs.version }}
+        python -m pip install ansible-core==${{ inputs.version }}
 
     - name: Verify Ansible
       shell: bash
