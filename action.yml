@@ -3,7 +3,7 @@ description: Install Ansible in an isolated virtualenv
 inputs:
   version:
     required: true
-    description: Ansible version to install (e.g. "2.20.1")
+    description: Ansible Core version to install (e.g. "2.20.1")
 
 runs:
   using: composite
@@ -26,19 +26,25 @@ runs:
           python -m venv .venv
         fi
 
-    - name: Install Ansible
+    - name: Install ansible-core if needed
       shell: bash
       run: |
         source .venv/bin/activate
-        python -m pip install --upgrade pip
-        python -m pip install ansible-core==${{ inputs.version }}
+
+        if ansible-playbook --version 2>/dev/null | grep -q "core ${{ inputs.version }}"; then
+          echo "Ansible Core ${{ inputs.version }} already installed, skipping."
+        else
+          echo "Installing Ansible Core ${{ inputs.version }}"
+          python -m pip install --upgrade pip
+          python -m pip install ansible-core==${{ inputs.version }}
+        fi
 
     - name: Verify Ansible
       shell: bash
       run: |
         source .venv/bin/activate
-        ansible --version
-    
+        ansible-playbook --version
+
     - name: Add venv to PATH
       shell: bash
       run: |
