@@ -3,18 +3,18 @@ description: Install Ansible in an isolated virtualenv
 inputs:
   version:
     required: true
-    description: Ansible Core version to install (e.g. "2.20.1")
+    description: Ansible Core version to install (e.g. "2.20.2")
 
 runs:
   using: composite
   steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: "3.12"
 
     - name: Restore venv cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: .venv
         key: ansible-${{ runner.os }}-${{ inputs.version }}
