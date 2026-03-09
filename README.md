@@ -1,58 +1,43 @@
 # setup-ansible GitHub Action
 
-This GitHub Action installs Ansible on your GitHub Actions runner.
+Install Ansible on GitHub Actions runners — works on both **GitHub-hosted** and **self-hosted** runners.
 
 ## Usage
 
 ```yaml
 - uses: AdnanCekic/setup-ansible@v1
   with:
-    version: '2.20.2'  # required
+    version: '2.20.1'  # required
 ```
 
-## Example Workflow
+### Self-hosted runners
+
+If `actions/setup-python` fails (no pre-cached Python), the action automatically
+falls back to installing Python 3 from the system package manager (apt, dnf, yum, apk).
+
+You can also override the Python version:
 
 ```yaml
-name: Ansible Playbook
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Ansible
-        uses: AdnanCekic/setup-ansible@v1
-        with:
-          version: '2.20.2'
-
-      - name: Run playbook
-        run: ansible-playbook playbook.yml
+- uses: AdnanCekic/setup-ansible@v1
+  with:
+    version: '2.20.1'
+    python-version: '3.11'
 ```
 
 ## Inputs
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `version` | Ansible Core version to install (e.g. "2.20.2") | Yes | - |
+| `version` | Ansible Core version to install | Yes | - |
+| `python-version` | Python version for `setup-python` | No | `3.12` |
 
 ## Features
 
-- ✅ Isolated virtualenv installation (no system pollution)
-- ✅ Smart caching (skips reinstall if version already cached)
-- ✅ Python 3.12 with latest actions/setup-python@v6
-- ✅ Fast subsequent runs with actions/cache@v6
+- Isolated virtualenv installation (no system pollution)
+- Smart caching (skips reinstall if version already cached)
+- Self-hosted runner support (auto-installs Python if needed)
+- Fast subsequent runs with actions/cache
 
 ## License
 
 MIT License
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
