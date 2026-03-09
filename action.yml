@@ -24,15 +24,20 @@ runs:
       shell: bash
       run: |
         echo "actions/setup-python failed — installing Python from system packages"
+        # Use sudo only if not running as root
+        SUDO=""
+        if [ "$(id -u)" -ne 0 ] && command -v sudo &>/dev/null; then
+          SUDO="sudo"
+        fi
         if command -v apt-get &>/dev/null; then
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq python3 python3-pip python3-venv
+          $SUDO apt-get update -qq
+          $SUDO apt-get install -y -qq python3 python3-pip python3-venv
         elif command -v dnf &>/dev/null; then
-          sudo dnf install -y -q python3 python3-pip
+          $SUDO dnf install -y -q python3 python3-pip
         elif command -v yum &>/dev/null; then
-          sudo yum install -y -q python3 python3-pip
+          $SUDO yum install -y -q python3 python3-pip
         elif command -v apk &>/dev/null; then
-          sudo apk add --quiet python3 py3-pip
+          $SUDO apk add --quiet python3 py3-pip
         else
           echo "::error::No supported package manager found. Install Python 3 manually."
           exit 1
