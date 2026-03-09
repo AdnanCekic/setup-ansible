@@ -1,17 +1,43 @@
 name: Setup Ansible
-description: Install Ansible in an isolated virtualenv
+description: Install Ansible in an isolated virtualenv (supports GitHub-hosted and self-hosted runners)
 inputs:
   version:
     required: true
-    description: Ansible Core version to install (e.g. "2.20.2")
+    description: Ansible Core version to install (e.g. "2.20.1")
+  python-version:
+    required: false
+    default: "3.12"
+    description: Python version to use (e.g. "3.11", "3.12")
 
 runs:
   using: composite
   steps:
     - name: Setup Python
+      id: setup-python
       uses: actions/setup-python@v6
       with:
-        python-version: "3.12"
+        python-version: ${{ inputs.python-version }}
+      continue-on-error: true
+
+    - name: Install Python from system package manager (self-hosted fallback)
+      if: steps.setup-python.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "actions/setup-python failed — installing Python from system packages"
+        if command -v apt-get &>/dev/null; then
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3 python3-pip python3-venv
+        elif command -v dnf &>/dev/null; then
+          sudo dnf install -y -q python3 python3-pip
+        elif command -v yum &>/dev/null; then
+          sudo yum install -y -q python3 python3-pip
+        elif command -v apk &>/dev/null; then
+          sudo apk add --quiet python3 py3-pip
+        else
+          echo "::error::No supported package manager found. Install Python 3 manually."
+          exit 1
+        fi
+        echo "Python version: $(python3 --version)"
 
     - name: Restore venv cache
       uses: actions/cache@v6
@@ -23,7 +49,7 @@ runs:
       shell: bash
       run: |
         if [ ! -d ".venv" ]; then
-          python -m venv .venv
+          python3 -m venv .venv
         fi
 
     - name: Install ansible-core if needed
