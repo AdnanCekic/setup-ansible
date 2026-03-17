@@ -12,35 +12,45 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Python
-      id: setup-python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ inputs.python-version }}
-      continue-on-error: true
-
-    - name: Install Python from system package manager (self-hosted fallback)
-      if: steps.setup-python.outcome == 'failure'
+    - name: Check for pre-installed Python
+      id: check-python
       shell: bash
       run: |
-        echo "actions/setup-python failed — installing Python from system packages"
-        # Use sudo only if not running as root
-        SUDO=""
-        if [ "$(id -u)" -ne 0 ] && command -v sudo &>/dev/null; then
-          SUDO="sudo"
-        fi
-        if command -v apt-get &>/dev/null; then
-          $SUDO apt-get update -qq
-          $SUDO apt-get install -y -qq python3 python3-pip python3-venv
-        elif command -v dnf &>/dev/null; then
-          $SUDO dnf install -y -q python3 python3-pip
-        elif command -v yum &>/dev/null; then
-          $SUDO yum install -y -q python3 python3-pip
-        elif command -v apk &>/dev/null; then
-          $SUDO apk add --quiet python3 py3-pip
+        if python3 --version &>/dev/null; then
+          echo "found=true" >> $GITHUB_OUTPUT
+          echo "Python already available: $(python3 --version)"
         else
-          echo "::error::No supported package manager found. Install Python 3 manually."
-          exit 1
+          echo "found=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Setup Python (GitHub-hosted runners)
+      if: steps.check-python.outputs.found == 'false'
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Ensure pip and venv are available
+      shell: bash
+      run: |
+        if ! python3 -m pip --version &>/dev/null; then
+          echo "pip not found — installing from system packages"
+          SUDO=""
+          if [ "$(id -u)" -ne 0 ] && command -v sudo &>/dev/null; then
+            SUDO="sudo"
+          fi
+          if command -v apt-get &>/dev/null; then
+            $SUDO apt-get update -qq
+            $SUDO apt-get install -y -qq python3-pip python3-venv
+          elif command -v dnf &>/dev/null; then
+            $SUDO dnf install -y -q python3-pip
+          elif command -v yum &>/dev/null; then
+            $SUDO yum install -y -q python3-pip
+          elif command -v apk &>/dev/null; then
+            $SUDO apk add --quiet py3-pip
+          else
+            echo "::error::No supported package manager found. Install Python 3 manually."
+            exit 1
+          fi
         fi
         echo "Python version: $(python3 --version)"
 
