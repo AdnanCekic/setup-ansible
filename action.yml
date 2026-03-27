@@ -39,7 +39,7 @@ runs:
           else
             echo "ensurepip unavailable — installing pip via get-pip.py (no sudo needed)"
             curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
-            python3 /tmp/get-pip.py --user --quiet
+            python3 /tmp/get-pip.py --user --quiet --break-system-packages
             export PATH="$HOME/.local/bin:$PATH"
             echo "$HOME/.local/bin" >> $GITHUB_PATH
           fi
