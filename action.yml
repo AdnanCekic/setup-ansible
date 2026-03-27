@@ -30,6 +30,7 @@ runs:
         python-version: ${{ inputs.python-version }}
 
     - name: Ensure pip and venv are available
+      id: python-info
       shell: bash
       run: |
         if ! python3 -m pip --version &>/dev/null; then
@@ -44,17 +45,24 @@ runs:
             echo "$HOME/.local/bin" >> $GITHUB_PATH
           fi
         fi
-        echo "Python version: $(python3 --version)"
+        PYVER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+        echo "Python version: $PYVER"
+        echo "python-version=$PYVER" >> $GITHUB_OUTPUT
 
     - name: Restore venv cache
       uses: actions/cache@v5
       with:
         path: .venv
-        key: ansible-${{ runner.os }}-${{ inputs.version }}
+        key: ansible-${{ runner.os }}-py${{ steps.python-info.outputs.python-version }}-${{ inputs.version }}
 
     - name: Create virtualenv
       shell: bash
       run: |
+        # Validate cached venv works with current Python
+        if [ -d ".venv" ] && ! .venv/bin/python3 --version &>/dev/null; then
+          echo "Cached venv is stale (Python mismatch) — recreating"
+          rm -rf .venv
+        fi
         if [ ! -d ".venv" ]; then
           if ! python3 -m venv .venv 2>/dev/null; then
             echo "venv module failed — creating virtualenv manually"
