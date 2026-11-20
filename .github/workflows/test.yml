@@ -1,0 +1,65 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosted:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        python: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: ansible
+        uses: ./
+        with:
+          version: "2.20.1"
+          python-version: ${{ matrix.python }}
+          extra-packages: "jmespath pywinrm"
+      - name: Verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.ansible.outputs.ansible-version }}" = "2.20.1"
+          ansible --version | grep -q "core 2.20.1"
+          python -c "import jmespath"
+          pip --version
+          ansible localhost -m ping
+
+  # Mimics the self-hosted runner: Ubuntu 24.04 with a system Python that has
+  # no venv, no ensurepip and no pip, and no sudo for the job.
+  stripped-python:
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Prepare a stripped Ubuntu
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends python3 ca-certificates git >/dev/null
+          ! python3 -m venv /tmp/probe 2>/dev/null
+          ! python3 -m pip --version 2>/dev/null
+      - uses: actions/checkout@v7
+      - uses: ./
+        with:
+          version: "2.20.1"
+      - run: ansible --version | grep -q "core 2.20.1"
+
+  bad-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: bad
+        uses: ./
+        continue-on-error: true
+        with:
+          version: "2.20; echo pwned"
+      - run: test "${{ steps.bad.outcome }}" = "failure"

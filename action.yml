@@ -1,96 +1,84 @@
 name: Setup Ansible
-description: Install Ansible in an isolated virtualenv (supports GitHub-hosted and self-hosted runners)
+description: Install a pinned ansible-core into an isolated virtualenv with uv. Works on GitHub-hosted and self-hosted runners without sudo.
+author: AdnanCekic
+branding:
+  icon: terminal
+  color: gray-dark
+
 inputs:
   version:
+    description: ansible-core version to install, e.g. "2.20.1".
     required: true
-    description: Ansible Core version to install (e.g. "2.20.1")
   python-version:
-    required: false
+    description: Python version for the virtualenv. uv downloads it when the runner does not have it.
     default: "3.12"
-    description: Python version to use (e.g. "3.11", "3.12")
+  extra-packages:
+    description: Extra pip packages installed into the same virtualenv, space separated. The ansible-core pin applies to them as a constraint, so they cannot upgrade it.
+    default: ""
+
+outputs:
+  ansible-version:
+    description: The installed ansible-core version.
+    value: ${{ steps.install.outputs.ansible-version }}
+  venv:
+    description: Path to the virtualenv. Its bin directory is on PATH for later steps.
+    value: ${{ steps.install.outputs.venv }}
 
 runs:
   using: composite
   steps:
-    - name: Check for pre-installed Python
-      id: check-python
+    - name: Check runner
       shell: bash
       run: |
-        if python3 --version &>/dev/null; then
-          echo "found=true" >> $GITHUB_OUTPUT
-          echo "Python already available: $(python3 --version)"
-        else
-          echo "found=false" >> $GITHUB_OUTPUT
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          echo "::error::Ansible does not run on Windows as a control node. Use a Linux or macOS runner."
+          exit 1
         fi
 
-    - name: Setup Python (GitHub-hosted runners)
-      if: steps.check-python.outputs.found == 'false'
-      uses: actions/setup-python@v6
+    # Pinned to a commit: this action runs on runners that hold deployment
+    # secrets, so a moved upstream tag must not change what executes.
+    - name: Install uv
+      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       with:
-        python-version: ${{ inputs.python-version }}
+        enable-cache: "false"
 
-    - name: Ensure pip and venv are available
-      id: python-info
+    # uv builds the venv and seeds pip itself, so neither sudo nor the venv
+    # and ensurepip modules (stripped from Ubuntu's system Python) are needed.
+    # Inputs reach the script through env, never through ${{ }} in the script
+    # text.
+    - name: Install ansible-core
+      id: install
       shell: bash
+      env:
+        ANSIBLE_CORE_VERSION: ${{ inputs.version }}
+        PYTHON_VERSION: ${{ inputs.python-version }}
+        EXTRA_PACKAGES: ${{ inputs.extra-packages }}
       run: |
-        if ! python3 -m pip --version &>/dev/null; then
-          echo "pip not found — trying ensurepip"
-          if python3 -m ensurepip --default-pip 2>/dev/null; then
-            echo "pip installed via ensurepip"
-          else
-            echo "ensurepip unavailable — installing pip via get-pip.py (no sudo needed)"
-            curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
-            python3 /tmp/get-pip.py --user --quiet --break-system-packages
-            export PATH="$HOME/.local/bin:$PATH"
-            echo "$HOME/.local/bin" >> $GITHUB_PATH
-          fi
-        fi
-        PYVER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
-        echo "Python version: $PYVER"
-        echo "python-version=$PYVER" >> $GITHUB_OUTPUT
+        set -euo pipefail
 
-    - name: Restore venv cache
-      uses: actions/cache@v5
-      with:
-        path: .venv
-        key: ansible-${{ runner.os }}-py${{ steps.python-info.outputs.python-version }}-${{ inputs.version }}
-
-    - name: Create virtualenv
-      shell: bash
-      run: |
-        # Validate cached venv works with current Python
-        if [ -d ".venv" ] && ! .venv/bin/python3 --version &>/dev/null; then
-          echo "Cached venv is stale (Python mismatch) — recreating"
-          rm -rf .venv
-        fi
-        if [ ! -d ".venv" ]; then
-          if ! python3 -m venv .venv 2>/dev/null; then
-            echo "venv module failed — creating virtualenv manually"
-            python3 -m venv --without-pip .venv
-            curl -sSL https://bootstrap.pypa.io/get-pip.py | .venv/bin/python3
-          fi
+        if [[ ! "$ANSIBLE_CORE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([a-z0-9.]*)$ ]]; then
+          echo "::error::version must be an exact ansible-core version such as 2.20.1, got '$ANSIBLE_CORE_VERSION'."
+          exit 1
         fi
 
-    - name: Install ansible-core if needed
-      shell: bash
-      run: |
-        source .venv/bin/activate
+        venv="$RUNNER_TEMP/setup-ansible/venv"
+        rm -rf "$venv"
+        uv venv --quiet --seed --python "$PYTHON_VERSION" "$venv"
 
-        if ansible-playbook --version 2>/dev/null | grep -q "core ${{ inputs.version }}"; then
-          echo "Ansible Core ${{ inputs.version }} already installed, skipping."
-        else
-          echo "Installing Ansible Core ${{ inputs.version }}"
-          python -m pip install --upgrade pip
-          python -m pip install ansible-core==${{ inputs.version }}
+        # The ${extra[@]+...} form keeps an empty list working under set -u in
+        # bash 3.2 (macOS /bin/bash).
+        read -r -a extra <<< "$EXTRA_PACKAGES"
+        uv pip install --python "$venv/bin/python" "ansible-core==$ANSIBLE_CORE_VERSION" ${extra[@]+"${extra[@]}"}
+
+        installed="$("$venv/bin/python" -c 'from importlib.metadata import version; print(version("ansible-core"))')"
+        if [[ "$installed" != "$ANSIBLE_CORE_VERSION" ]]; then
+          echo "::error::Expected ansible-core $ANSIBLE_CORE_VERSION, got $installed."
+          exit 1
         fi
 
-    - name: Verify Ansible
-      shell: bash
-      run: |
-        source .venv/bin/activate
-        ansible-playbook --version
+        echo "$venv/bin" >> "$GITHUB_PATH"
+        echo "VIRTUAL_ENV=$venv" >> "$GITHUB_ENV"
+        echo "ansible-version=$installed" >> "$GITHUB_OUTPUT"
+        echo "venv=$venv" >> "$GITHUB_OUTPUT"
 
-    - name: Add venv to PATH
-      shell: bash
-      run: |
-        echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+        "$venv/bin/ansible" --version
